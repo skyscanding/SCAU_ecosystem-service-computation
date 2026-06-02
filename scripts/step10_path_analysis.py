@@ -169,6 +169,16 @@ def fit_path_model(df, model_spec, stats_dir):
     import pandas as pd
     from _utils import sanitize_for_sem, ensure_dir
 
+    if model_spec is None:                       # callable standalone, not only via caller
+        model_spec = """
+        SHDI ~ Mean MAG
+        MESH ~ Mean MAG
+        CONTAG ~ Mean MAG
+        carbon_total_Mg ~ SHDI + MESH + Mean MAG
+        habitat_quality_mean ~ SHDI + CONTAG + Mean MAG
+        sed_export_t_yr ~ SHDI + Area (ha) + Mean MAG
+        """
+
     # strip comments / blank lines
     spec_lines = [ln.strip() for ln in model_spec.strip().split("\n")
                   if ln.strip() and not ln.strip().startswith("#")]

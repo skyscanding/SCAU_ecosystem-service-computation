@@ -128,43 +128,60 @@ def analyze_landtrendr(
     boundary_gdf = gpd.read_file(boundary_shp)
     print(f"    CRS: {boundary_gdf.crs}, features: {len(boundary_gdf)}")
 
-    # ── Get raster CRS from YOD and reproject boundary ──
+    # ── Per-raster CRS handling: YOD defines the reference grid; every  ──
+    # ── other raster is clipped in ITS OWN native CRS, then warped onto  ──
+    # ── the YOD grid so all four arrays share CRS / transform / shape.   ──
+    from rasterio.warp import reproject, Resampling
+
     yod_path = data_dir / yod_file
     mag_path = data_dir / mag_file
     dur_path = data_dir / dur_file
     mpy_path = data_dir / mpy_file
 
-    with rasterio.open(yod_path) as src:
-        raster_crs = src.crs
-    print(f"    Raster CRS: {raster_crs}")
-
-    boundary_proj = boundary_gdf.to_crs(raster_crs)
-    print(f"    Boundary area: {boundary_proj.geometry.area.sum()/1e6:,.2f} km²")
-
-    clip_shapes = [mapping(geom) for geom in boundary_proj.geometry]
-
-    # ── Load & clip rasters (simple helper; no CRS warping) ──
-    def load_and_clip(path, shapes, nodata=0):
+    def _clip_native(path, nodata=0):
+        """Clip a raster to the boundary in the raster's OWN native CRS."""
         with rasterio.open(path) as src:
-            out_image, out_transform = rio_mask(
-                src, shapes, crop=True, nodata=nodata, filled=True
-            )
-            out_meta = src.meta.copy()
-            out_meta.update({
-                'height': out_image.shape[1],
-                'width': out_image.shape[2],
-                'transform': out_transform
-            })
-            bounds = rasterio.transform.array_bounds(
-                out_image.shape[1], out_image.shape[2], out_transform
-            )
-        return out_image[0], out_meta, out_transform, bounds
+            src_crs = src.crs
+            if src_crs is None:
+                raise ValueError(f"{Path(path).name} has no CRS; cannot clip safely.")
+            bnd = boundary_gdf.to_crs(src_crs)            # reproject boundary per-raster
+            shapes = [mapping(g) for g in bnd.geometry if g is not None]
+            arr, tf = rio_mask(src, shapes, crop=True, nodata=nodata, filled=True)
+            meta = src.meta.copy()
+        return arr[0], tf, src_crs, meta
 
-    print(f"  [{time.time()-T0:.0f}s] Loading & clipping rasters...")
-    yod, yod_meta, yod_tf, yod_bnds = load_and_clip(yod_path, clip_shapes)
-    mag, mag_meta, _, _              = load_and_clip(mag_path, clip_shapes)
-    dur, dur_meta, _, _              = load_and_clip(dur_path, clip_shapes)
-    mpy, mpy_meta, _, _              = load_and_clip(mpy_path, clip_shapes)
+    def _align_to_ref(path, ref_crs, ref_tf, ref_shape, resampling, nodata=0):
+        """Clip in native CRS, then warp onto the reference grid only if needed."""
+        arr, tf, src_crs, _ = _clip_native(path, nodata=nodata)
+        if src_crs == ref_crs and arr.shape == ref_shape:
+            return arr                                    # already aligned; no warp
+        print(f"      reprojecting {Path(path).name}: {src_crs} -> {ref_crs} "
+              f"({arr.shape} -> {ref_shape})")
+        dst = np.full(ref_shape, nodata, dtype=arr.dtype)
+        reproject(
+            source=arr, destination=dst,
+            src_transform=tf, src_crs=src_crs,
+            dst_transform=ref_tf, dst_crs=ref_crs,
+            src_nodata=nodata, dst_nodata=nodata,
+            resampling=resampling,
+        )
+        return dst
+
+    print(f"  [{time.time()-T0:.0f}s] Loading & clipping rasters (per-raster CRS handling)...")
+
+    # YOD = reference grid (CRS / transform / shape). Never warped → integer YOD preserved.
+    yod, yod_tf, ref_crs, yod_meta = _clip_native(yod_path)
+    ref_shape = yod.shape
+    yod_meta.update({'height': ref_shape[0], 'width': ref_shape[1], 'transform': yod_tf})
+    yod_bnds = rasterio.transform.array_bounds(ref_shape[0], ref_shape[1], yod_tf)
+    print(f"    Reference CRS (from YOD): {ref_crs}; grid {ref_shape}")
+
+    boundary_proj = boundary_gdf.to_crs(ref_crs)          # used by roi_mask + plots below
+
+    # integer / categorical -> nearest;  continuous magnitude -> bilinear
+    mag = _align_to_ref(mag_path, ref_crs, yod_tf, ref_shape, Resampling.bilinear)
+    dur = _align_to_ref(dur_path, ref_crs, yod_tf, ref_shape, Resampling.nearest)
+    mpy = _align_to_ref(mpy_path, ref_crs, yod_tf, ref_shape, Resampling.bilinear)
 
     # Extent for imshow [left, right, bottom, top]
     extent = [yod_bnds[0], yod_bnds[2], yod_bnds[1], yod_bnds[3]]
