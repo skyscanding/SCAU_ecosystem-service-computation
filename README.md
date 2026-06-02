@@ -972,4 +972,4 @@ Landtrendr_analysis/
 
 ## License
 
-MIT
+Proprietary — All Rights Reserved. See the [LICENSE](LICENSE) file.
