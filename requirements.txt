@@ -1,0 +1,22 @@
+# LandTrendr Disturbance + Ecosystem Services Coupling Analysis Pipeline
+# ========================================================================
+# Install into your Python environment:
+#
+#   pip install -r requirements.txt
+#
+# Core GIS: rasterio, geopandas, shapely
+# Statistics: scipy, numpy, pandas, pingouin, semopy, statsmodels
+# Landscape: pylandstats
+
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+matplotlib>=3.7
+rasterio>=1.3
+geopandas>=0.14
+shapely>=2.0
+pingouin>=0.5
+statsmodels>=0.14
+scikit-learn>=1.3
+pylandstats>=3.0
+semopy>=2.3

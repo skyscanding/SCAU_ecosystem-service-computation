@@ -1,0 +1,207 @@
+{
+  "_description": "LandTrendr + Ecosystem Services Coupling Analysis Configuration (Nanling conventions). Copy and customize for your study area.",
+  "_usage": "python scripts/master_pipeline.py this_config.json [--steps dist,class,land,merge,corr,regress,path]",
+
+  "output_dir": "D:/YourProject/output",
+  "crs": "EPSG:32649",
+  "steps": ["dist", "class", "land", "carbon", "hq", "sdr", "merge", "corr", "regress", "path"],
+
+  "field_mapping": {
+    "_doc": "Column name mappings for your datasets. Scripts auto-detect using these as fallback.",
+    "year_field": "Year",
+    "phase_field": "phase"
+  },
+
+  "study_area": {
+    "_note": "Study boundary and pixel parameters.",
+    "boundary_shp": "D:/data/boundary.shp",
+    "pixel_area_ha": 0.09,
+    "raster_res_m": 30
+  },
+
+  "landtrendr": {
+    "_note": "LandTrendr disturbance detection (Nanling conventions). Expects GEE-exported rasters in native CRS.",
+    "raster_dir": "D:/data/LandTrendr_export",
+    "yod_raster": "yod_2009_2024.tif",
+    "mag_raster": "mag_2009_2024.tif",
+    "dur_raster": "dur_2009_2024.tif",
+    "mpy_raster": "magperyear_2009_2024.tif",
+    "nodata_val": 0,
+    "yod_range": [2010, 2024],
+
+    "intensity_bins": {
+      "_doc": "4-class intensity bins for CSV export + stacked bar charts (Nanling convention).",
+      "low":        [0.2, 0.35, "#f1c40f"],
+      "moderate":   [0.35, 0.5, "#e67e22"],
+      "high":       [0.5, 0.65, "#e74c3c"],
+      "very_high":  [0.65, 9.0, "#8b0000"]
+    },
+
+    "severity_bins": {
+      "_doc": "3-class severity bins for spatial classification map (Nanling convention).",
+      "low":        [0.2, 0.35, "#f1c40f"],
+      "moderate":   [0.35, 0.55, "#e67e22"],
+      "high":       [0.55, 9.0, "#c0392b"]
+    },
+
+    "generate_figures": true,
+    "_figures_note": "Produces 16 diagnostic figures (01-16) following Nanling style.",
+    "_figures_list": [
+      "01_annual_disturbance_area.png",
+      "02_mag_distributions.png",
+      "03_duration_distribution.png",
+      "04_annual_magnitude_trend.png",
+      "05_spatial_yod.png",
+      "06_spatial_magnitude.png",
+      "07_hotspot_density.png",
+      "08_temporal_hotspot_periods.png",
+      "09_mag_by_year_duration.png",
+      "10_crosstab_dur_year.png",
+      "11_stacked_duration_composition.png",
+      "12_mag_vs_rate_scatter.png",
+      "13_severity_classification.png",
+      "14_intensity_by_year_stacked.png",
+      "15_intensity_year_heatmap.png",
+      "16_intensity_trend_severity_ratio.png"
+    ],
+
+    "gee_params": {
+      "_note": "GEE LandTrendr run parameters (for reference only).",
+      "max_segments": 6,
+      "spike_threshold": 0.9,
+      "vertex_count_overshoot": 3,
+      "prevent_one_year_recovery": true,
+      "recovery_threshold": 0.25,
+      "pval_threshold": 0.05,
+      "best_model_proportion": 0.75,
+      "min_observations_needed": 6,
+      "magnitude_threshold": 200,
+      "duration_threshold": 5,
+      "preval_threshold": 300,
+      "mmu": 11
+    }
+  },
+
+  "lulc": {
+    "_note": "LULC classification raster analysis.",
+    "raster_dir": "D:/data/LULC_classified",
+    "raster_pattern": "lulc_{year}.tif",
+    "year_range": [2000, 2025],
+    "classes": {
+      "water": 1,
+      "built_up": 2,
+      "unrestored": 3,
+      "recovering": 4,
+      "stable_vegetation": 5
+    }
+  },
+
+  "landscape": {
+    "_note": "PyLandStats landscape metrics computation.",
+    "metrics_level": ["landscape", "class"],
+    "landscape_metrics": ["np", "pd", "lpi", "ed", "lsi", "shdi", "contag", "mesh"],
+    "class_metrics": ["ca", "pland", "np", "pd", "lpi", "ed", "lsi"],
+    "neighborhood_rule": "8"
+  },
+
+  "invest_carbon": {
+    "_note": "InVEST Carbon Storage and Sequestration model.",
+    "carbon_pools_csv": null,
+    "carbon_pools": {
+      "_note": "Default Dabaoshan pools (Mg/ha). Override with CSV or custom dict.",
+      "water":              { "c_above": 0,  "c_below": 0,  "c_soil": 0,  "c_dead": 0 },
+      "built_up":           { "c_above": 0,  "c_below": 0,  "c_soil": 0,  "c_dead": 0 },
+      "unrestored":         { "c_above": 2.5,"c_below": 1.2,"c_soil": 45, "c_dead": 1.5 },
+      "recovering":         { "c_above": 15, "c_below": 7,  "c_soil": 60, "c_dead": 3 },
+      "stable_vegetation":  { "c_above": 85, "c_below": 40, "c_soil": 95, "c_dead": 8 }
+    }
+  },
+
+  "invest_habitat_quality": {
+    "_note": "InVEST Habitat Quality model.",
+    "half_saturation_constant": 0.5,
+    "habitat_scores": {
+      "water": 0.8,
+      "built_up": 0.0,
+      "unrestored": 0.1,
+      "recovering": 0.4,
+      "stable_vegetation": 0.9
+    }
+  },
+
+  "invest_sdr": {
+    "_note": "InVEST Sediment Delivery Ratio model.",
+    "r_factor_source": "annual",
+    "_r_factor_comment": "'annual' = per-year values, 'mean' = multi-year average",
+    "lulc_c_factor": {
+      "water": 0.0,
+      "built_up": 0.01,
+      "unrestored": 0.35,
+      "recovering": 0.08,
+      "stable_vegetation": 0.003
+    },
+    "lulc_p_factor": {
+      "water": 0.0,
+      "built_up": 1.0,
+      "unrestored": 1.0,
+      "recovering": 1.0,
+      "stable_vegetation": 1.0
+    }
+  },
+
+  "merge": {
+    "_note": "Merge all analysis outputs into a unified analysis table.",
+    "output_csv": "analysis_table.csv",
+    "_landtrendr_columns": "Uses Nanling summary_statistics.csv columns: Pixel Count, Area (ha), Area (km²), Mean MAG, Median MAG, Std MAG, Mean Rate, Dur_1yr_ha, Dur_2yr_ha, Dur_3yr_ha, Low_ha, Moderate_ha, High_ha, Very_High_ha, Severe_pct"
+  },
+
+  "correlation": {
+    "_note": "Correlation and partial correlation analysis.",
+    "analysis_years": [2013, 2025],
+    "methods": ["pearson", "spearman"],
+    "alpha": 0.05,
+    "fdr_method": "fdr_bh"
+  },
+
+  "regression": {
+    "_note": "OLS multiple regression models.",
+    "models": {
+      "carbon_model": {
+        "dependent": "carbon_total_Mg",
+        "explanatory": ["Mean MAG", "LPI", "SHDI"],
+        "description": "Carbon storage ~ Disturbance magnitude + Landscape dominance + Diversity"
+      },
+      "hq_model": {
+        "dependent": "habitat_quality_mean",
+        "explanatory": ["Mean MAG", "MESH", "CONTAG"],
+        "description": "Habitat quality ~ Disturbance magnitude + Landscape fragmentation"
+      },
+      "erosion_model": {
+        "dependent": "sed_export_t_yr",
+        "explanatory": ["Area (ha)", "ED", "LPI"],
+        "description": "Soil erosion ~ Disturbance area + Edge density + Dominance"
+      }
+    }
+  },
+
+  "path_analysis": {
+    "_note": "SEM path analysis (semopy). Hypothesis: disturbance → landscape pattern → ecosystem services.",
+    "model_spec": "# Direct effects\nSHDI ~ Mean MAG\nMESH ~ Mean MAG\nCONTAG ~ Mean MAG\ncarbon_total_Mg ~ SHDI + MESH + Mean MAG\nhabitat_quality_mean ~ SHDI + CONTAG + Mean MAG\nsed_export_t_yr ~ SHDI + Area (ha) + Mean MAG",
+    "estimator": "ML"
+  },
+
+  "phase_analysis": {
+    "_note": "Three-phase comparison: Degradation (2013-2016), Transition (2017-2020), Consolidation (2021-2025).",
+    "phases": {
+      "Degradation": [2013, 2016],
+      "Transition": [2017, 2020],
+      "Consolidation": [2021, 2025]
+    },
+    "test": "kruskal_wallis",
+    "variables": [
+      "Area (ha)", "Mean MAG",
+      "SHDI", "NP", "MESH",
+      "carbon_total_Mg", "habitat_quality_mean", "sed_export_t_yr"
+    ]
+  }
+}
