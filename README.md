@@ -2,7 +2,7 @@
 
 A config-driven, command-line pipeline that automates the full chain from raw remote-sensing rasters to publishable coupling statistics. It turns an analysis that was previously run by hand in Jupyter notebooks into a reproducible workflow that can be **run in batch** across study areas and across years from a single config file.
 
-It integrates **GEE-exported LandTrendr disturbance products** (YOD / MAG / DUR / MPY) with **pre-classified annual LULC maps**, then computes LULC area & transition trends, **landscape metrics** (PyLandStats), **InVEST-style ecosystem-service estimation** (Carbon, Habitat Quality, SDR — simplified area × coefficient lookup models, *not* the InVEST software), and **statistical coupling analysis** (correlation, regression, SEM path analysis, Kruskal-Wallis phase comparison).
+It integrates **GEE-exported LandTrendr disturbance products** (YOD / MAG / DUR / MPY) with **pre-classified annual LULC maps**, then computes LULC area & transition trends, **landscape metrics** (PyLandStats), **InVEST-style ecosystem-service estimation** (Carbon, Habitat Quality, SDR; simplified area × coefficient lookup models, *not* the InVEST software), and **statistical coupling analysis** (correlation, regression, SEM path analysis, Kruskal-Wallis phase comparison).
 
 No GUI. Entirely command-line driven. Point it at your GEE LandTrendr exports and annual LULC rasters, run one command, and get every CSV/figure out the other end. Validated against a real-world Dabaoshan Mine Area ecological restoration case study.
 
@@ -36,10 +36,10 @@ No GUI. Entirely command-line driven. Point it at your GEE LandTrendr exports an
 All upstream remote-sensing computation runs on **Google Earth Engine (GEE)**, *not* in this repository:
 
 - Landsat compositing, cloud masking, and the **LandTrendr** temporal segmentation (NBR trajectory fitting) that produces the **YOD / MAG / DUR / MPY** rasters;
-- **LULC classification** — sample collection, classifier **training** (SVM), and per-year prediction that produces the **annual LULC maps**;
+- **LULC classification**: sample collection, classifier **training** (SVM), and per-year prediction that produces the **annual LULC maps**;
 - **export** of all of the above as GeoTIFFs (the inputs listed under [Data Inputs](#data-inputs)).
 
-This Python pipeline is strictly **downstream**: it ingests those GEE-exported rasters and runs the analysis chain — disturbance statistics, LULC area/transition trends, landscape metrics, ecosystem-service estimation, and statistical coupling. It does **not** fit LandTrendr, train classifiers, or classify imagery itself.
+This Python pipeline is strictly **downstream**: it ingests those GEE-exported rasters and runs the analysis chain: disturbance statistics, LULC area/transition trends, landscape metrics, ecosystem-service estimation, and statistical coupling. It does **not** fit LandTrendr, train classifiers, or classify imagery itself.
 
 > **Coming later:** the GEE-side scripts (LandTrendr export + LULC classification/training) are maintained separately for now and will be added to this repo in a future update. Until then, bring your own GEE exports as described in [Data Inputs](#data-inputs).
 
