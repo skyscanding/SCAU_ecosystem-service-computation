@@ -608,7 +608,7 @@ Combines all step outputs into a single unified analysis table with phase labels
 | Carbon | `carbon_total_Mg`, `carbon_density_Mg_ha` | Step 4 |
 | Habitat | `habitat_quality_mean` | Step 5 |
 | SDR | `usle_total_t_yr`, `sed_export_t_yr`, `r_factor_source` | Step 6 |
-| Disturbance | `disturb_pixels`, `disturb_area_ha`, `disturb_mean_mag`, ... | Step 1 |
+| Disturbance | `Pixel Count`, `Area (ha)`, `Mean MAG`, `Mean Rate`, ... | Step 1 |
 
 ### Phase Assignment
 
@@ -739,7 +739,7 @@ Significant KW result (p < 0.05) indicates at least one phase differs significan
 Open `analysis_table.csv` in any spreadsheet or data analysis tool:
 
 1. **Temporal trends**: Plot `Year` vs. `carbon_total_Mg` - expect decline during Degradation, stabilization during Consolidation.
-2. **Disturbance-Landscape coupling**: Plot `disturb_mean_mag` vs. `SHDI` - higher magnitude should correlate with higher diversity (more fragmentation).
+2. **Disturbance-Landscape coupling**: Plot `Mean MAG` vs. `SHDI` - higher magnitude should correlate with higher diversity (more fragmentation).
 3. **Phase boxplots**: Group by `phase` and compare distributions of key variables.
 
 ### Reading Correlation Matrices
@@ -791,16 +791,20 @@ field_mapping:
 # ── LandTrendr (Step 1) ──
 landtrendr:
   raster_dir: "D:/data/LT/"
-  yod_raster: "yod_2005_2025.tif"
-  mag_raster: "mag_NBR_2005_2025.tif"
-  dur_raster: "durReclass_2005_2025.tif"
-  mpy_raster: "mag_per_year_2005_2025.tif"
+  yod_raster: "yod_2009_2024.tif"
+  mag_raster: "mag_2009_2024.tif"
+  dur_raster: "dur_2009_2024.tif"
+  mpy_raster: "magperyear_2009_2024.tif"
   yod_range: [2013, 2024]
-  severity_bins:                        # Override default bins
-    0: [0.0, 0.35]     # Mild
-    1: [0.35, 0.50]    # Moderate
-    2: [0.50, 0.70]    # Severe
-    3: [0.70, 10.0]    # Extreme
+  intensity_bins:                        # 4-class (CSV export)
+    low:       [0.2, 0.35, "#f1c40f"]
+    moderate:  [0.35, 0.5, "#e67e22"]
+    high:      [0.5, 0.65, "#e74c3c"]
+    very_high: [0.65, 9.0, "#8b0000"]
+  severity_bins:                         # 3-class (spatial map)
+    low:       [0.2, 0.35, "#f1c40f"]
+    moderate:  [0.35, 0.55, "#e67e22"]
+    high:      [0.55, 9.0, "#c0392b"]
 
 # ── LULC (Step 2) ──
 lulc:
@@ -862,15 +866,15 @@ regression:
   models:
     carbon_model:
       dependent: "carbon_total_Mg"
-      explanatory: [disturb_mean_mag, LPI, SHDI]
+      explanatory: ["Mean MAG", LPI, SHDI]
 
 # ── Path Analysis (Step 10) ──
 path_analysis:
   model_spec: |
-    SHDI ~ disturb_mean_mag
-    MESH ~ disturb_mean_mag
-    carbon_total_Mg ~ SHDI + MESH + disturb_mean_mag
-    habitat_quality_mean ~ SHDI + CONTAG + disturb_mean_mag
+    SHDI ~ Mean MAG
+    MESH ~ Mean MAG
+    carbon_total_Mg ~ SHDI + MESH + Mean MAG
+    habitat_quality_mean ~ SHDI + CONTAG + Mean MAG
 
 phase_analysis:
   phases:
@@ -878,7 +882,7 @@ phase_analysis:
     Transition: [2017, 2020]
     Consolidation: [2021, 2025]
   test: "kruskal_wallis"
-  variables: [disturb_area_ha, SHDI, carbon_total_Mg, habitat_quality_mean]
+  variables: ["Area (ha)", Mean MAG, SHDI, carbon_total_Mg, habitat_quality_mean]
 ```
 
 ---

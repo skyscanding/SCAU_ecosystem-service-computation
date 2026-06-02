@@ -1,5 +1,5 @@
 {
-  "_description": "LandTrendr + Ecosystem Services Coupling Analysis Configuration (Nanling conventions). Copy and customize for your study area.",
+  "_description": "LandTrendr + Ecosystem Services Coupling Analysis Configuration (Nanling conventions). Copy and customize for your study area. NOTE: yod_range now aligned to the documented 2013-2024 disturbance window (was 2010-2024).",
   "_usage": "python scripts/master_pipeline.py this_config.json [--steps dist,class,land,merge,corr,regress,path]",
 
   "output_dir": "D:/YourProject/output",
@@ -27,10 +27,11 @@
     "dur_raster": "dur_2009_2024.tif",
     "mpy_raster": "magperyear_2009_2024.tif",
     "nodata_val": 0,
-    "yod_range": [2010, 2024],
+    "yod_range": [2013, 2024],
+    "_yod_range_doc": "Disturbance detection window. Aligned with the phase start year (2013) and correlation.analysis_years so every retained YOD maps to a phase. This drives the disturbed-pixel count (case study = 1,008 px in 2013-2024); change only if you intend a different window. The YOD raster itself may still span 2009-2024; values outside this range are filtered out.",
 
     "intensity_bins": {
-      "_doc": "4-class intensity bins for CSV export + stacked bar charts (Nanling convention).",
+      "_doc": "4-class intensity bins for CSV export + stacked bar charts (Nanling convention). Matches _utils.INTENSITY_BINS.",
       "low":        [0.2, 0.35, "#f1c40f"],
       "moderate":   [0.35, 0.5, "#e67e22"],
       "high":       [0.5, 0.65, "#e74c3c"],
@@ -38,7 +39,7 @@
     },
 
     "severity_bins": {
-      "_doc": "3-class severity bins for spatial classification map (Nanling convention).",
+      "_doc": "3-class severity bins for spatial classification map (Nanling convention). Matches _utils.SEVERITY_BINS. (README's Full Config Reference shows an outdated 4-class/0.0-start version; this 3-class/0.2-start version is what the code actually uses.)",
       "low":        [0.2, 0.35, "#f1c40f"],
       "moderate":   [0.35, 0.55, "#e67e22"],
       "high":       [0.55, 9.0, "#c0392b"]
@@ -87,6 +88,7 @@
     "raster_dir": "D:/data/LULC_classified",
     "raster_pattern": "lulc_{year}.tif",
     "year_range": [2000, 2025],
+    "_year_range_doc": "Inclusive [start, end]. 2000-2025 = 26 possible annual maps; the README's '23 annual maps' refers to actually-available years (some Landsat-7 SLC-off / cloudy years may be missing). Missing years are skipped with a warning, not an error.",
     "classes": {
       "water": 1,
       "built_up": 2,
@@ -105,7 +107,7 @@
   },
 
   "invest_carbon": {
-    "_note": "InVEST Carbon Storage and Sequestration model.",
+    "_note": "Simplified InVEST-style Carbon estimation (area x pool density). Not the InVEST software; no natcap.invest dependency required.",
     "carbon_pools_csv": null,
     "carbon_pools": {
       "_note": "Default Dabaoshan pools (Mg/ha). Override with CSV or custom dict.",
@@ -118,7 +120,7 @@
   },
 
   "invest_habitat_quality": {
-    "_note": "InVEST Habitat Quality model.",
+    "_note": "Simplified InVEST-style Habitat Quality (area-weighted suitability). Not the InVEST software.",
     "half_saturation_constant": 0.5,
     "habitat_scores": {
       "water": 0.8,
@@ -130,7 +132,7 @@
   },
 
   "invest_sdr": {
-    "_note": "InVEST Sediment Delivery Ratio model.",
+    "_note": "Simplified InVEST-style SDR / USLE estimation. Not the InVEST software.",
     "r_factor_source": "annual",
     "_r_factor_comment": "'annual' = per-year values, 'mean' = multi-year average",
     "lulc_c_factor": {
@@ -152,7 +154,7 @@
   "merge": {
     "_note": "Merge all analysis outputs into a unified analysis table.",
     "output_csv": "analysis_table.csv",
-    "_landtrendr_columns": "Uses Nanling summary_statistics.csv columns: Pixel Count, Area (ha), Area (km²), Mean MAG, Median MAG, Std MAG, Mean Rate, Dur_1yr_ha, Dur_2yr_ha, Dur_3yr_ha, Low_ha, Moderate_ha, High_ha, Very_High_ha, Severe_pct"
+    "_landtrendr_columns": "Uses Nanling summary_statistics.csv columns: Pixel Count, Area (ha), Area (km2), Mean MAG, Median MAG, Std MAG, Mean Rate, Dur_1yr_ha, Dur_2yr_ha, Dur_3yr_ha, Low_ha, Moderate_ha, High_ha, Very_High_ha, Severe_pct"
   },
 
   "correlation": {
@@ -165,6 +167,7 @@
 
   "regression": {
     "_note": "OLS multiple regression models.",
+    "_naming_doc": "explanatory/dependent names MUST match the exact column headers in analysis_table.csv (i.e. the summary_statistics.csv headers like 'Mean MAG', 'Area (ha)'). Do NOT rename to underscore form here, or step9 will report Missing columns. (The README Full Config Reference uses 'disturb_mean_mag' which does NOT match the real columns - ignore it.)",
     "models": {
       "carbon_model": {
         "dependent": "carbon_total_Mg",
@@ -185,7 +188,8 @@
   },
 
   "path_analysis": {
-    "_note": "SEM path analysis (semopy). Hypothesis: disturbance → landscape pattern → ecosystem services.",
+    "_note": "SEM path analysis (semopy). Hypothesis: disturbance -> landscape pattern -> ecosystem services.",
+    "_naming_doc": "Variable names with spaces/parentheses ('Mean MAG', 'Area (ha)') are sanitized at runtime by sanitize_for_sem() in step10 before being passed to semopy, so they are safe to leave matching the analysis_table column headers.",
     "model_spec": "# Direct effects\nSHDI ~ Mean MAG\nMESH ~ Mean MAG\nCONTAG ~ Mean MAG\ncarbon_total_Mg ~ SHDI + MESH + Mean MAG\nhabitat_quality_mean ~ SHDI + CONTAG + Mean MAG\nsed_export_t_yr ~ SHDI + Area (ha) + Mean MAG",
     "estimator": "ML"
   },

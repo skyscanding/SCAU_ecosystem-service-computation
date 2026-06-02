@@ -98,3 +98,22 @@ cython_debug/
 *.tfw
 *.ovr
 *.cpg
+
+# Generated pipeline outputs (local runs)
+summary_statistics.csv
+analysis_table.csv
+lulc_area_trends.csv
+lulc_area_long.csv
+landscape_metrics.csv
+class_metrics.csv
+carbon_summary.csv
+habitat_quality_summary.csv
+sdr_summary.csv
+transition_matrix_*.csv
+transition_probability_*.csv
+landtrendr_global_stats.json
+Statistics/
+fig_*.png
+0[1-9]_*.png
+1[0-6]_*.png
+output/
