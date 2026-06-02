@@ -152,139 +152,180 @@ def path_analysis_and_phase_comparison(
         sed_export_t_yr ~ SHDI + Area (ha) + Mean MAG
         """
 
-    try:
-        import semopy
-        print(f"    semopy version: {semopy.__version__}")
-
-        # Clean model spec
-        spec_lines = [line.strip() for line in model_spec.strip().split("\n")
-                      if line.strip() and not line.strip().startswith("#")]
-        spec = "\n".join(spec_lines)
-        print(f"    Model specification:")
-        for line in spec_lines:
-            print(f"      {line}")
-
-        # Prepare data
-        model_vars = set()
-        for line in spec_lines:
-            parts = line.replace("~", " ").split()
-            for p in parts:
-                if p not in ["~"] and not p.startswith("#"):
-                    model_vars.add(p)
-
-        model_vars = [v for v in model_vars if v in df.columns]
-        model_df = df[model_vars].dropna()
-        print(f"    N = {len(model_df)} observations with complete data")
-
-        if len(model_df) < 5:
-            print("    WARNING: Too few observations for SEM. Skipping path analysis.")
-        else:
-            # Build and fit model
-            model = semopy.Model(spec)
-            opt = semopy.Optimizer(model)
-            opt.optimize(model_df)
-
-            # Extract estimates
-            estimates = model.inspect()
-            estimates = estimates[["lval", "op", "rval", "Estimate", "Std. Err", "z-value", "p-value"]]
-            estimates.columns = ["lhs", "op", "rhs", "coef", "std_err", "z_value", "p_value"]
-
-            for col in ["coef", "std_err", "z_value"]:
-                estimates[col] = estimates[col].astype(float).round(6)
-            estimates["p_value"] = estimates["p_value"].astype(float).round(6)
-            estimates["significant"] = estimates["p_value"] < 0.05
-
-            path_csv = os.path.join(stats_dir, "path_analysis_estimates.csv")
-            estimates.to_csv(path_csv, index=False, encoding="utf-8-sig")
-            results["path_analysis_csv"] = path_csv
-            print(f"    Path analysis estimates saved: {path_csv}")
-
-            # Print key paths
-            sig_paths = estimates[estimates["significant"]]
-            if len(sig_paths) > 0:
-                print(f"    Significant paths ({len(sig_paths)}/{len(estimates)}):")
-                for _, row in sig_paths.iterrows():
-                    stars = "***" if row["p_value"] < 0.001 else "**" if row["p_value"] < 0.01 else "*"
-                    print(f"      {row['lhs']} ← {row['rhs']}: β = {row['coef']:.4f}, p = {row['p_value']:.4f} {stars}")
-
-            # Model fit statistics
-            try:
-                stats = semopy.calc_stats(model)
-                fit_csv = os.path.join(stats_dir, "path_analysis_fit.csv")
-                fit_df = pd.DataFrame([{
-                    "chi2": round(stats.Chi2[0], 2),
-                    "chi2_p": round(stats.Chi2[1], 4),
-                    "df": stats.Chi2[2] if len(stats.Chi2) > 2 else None,
-                    "CFI": round(stats.CFI, 4) if hasattr(stats, "CFI") else None,
-                    "RMSEA": round(stats.RMSEA, 4) if hasattr(stats, "RMSEA") else None,
-                    "GFI": round(stats.GFI, 4) if hasattr(stats, "GFI") else None,
-                    "AIC": round(stats.AIC, 2) if hasattr(stats, "AIC") else None,
-                }])
-                fit_df.to_csv(fit_csv, index=False, encoding="utf-8-sig")
-                print(f"    Model fit saved: {fit_csv}")
-                print(f"      χ² = {stats.Chi2[0]:.2f}, df = {stats.Chi2[2]}, p = {stats.Chi2[1]:.4f}")
-                if hasattr(stats, "CFI"):
-                    print(f"      CFI = {stats.CFI:.4f}")
-                if hasattr(stats, "RMSEA"):
-                    print(f"      RMSEA = {stats.RMSEA:.4f}")
-            except Exception as e:
-                print(f"    Could not compute fit statistics: {e}")
-
-    except ImportError:
-        print("    semopy not installed. Skipping path analysis.")
-        print("    Install with: pip install semopy")
-
-        # Fallback: use statsmodels OLS for path-equivalent regressions
-        import statsmodels.api as sm
-        path_data = []
-
-        # SHDI ~ disturb_mean_mag
-        for spec_line in spec_lines:
-            parts = spec_line.replace("~", " ").strip().split()
-            if len(parts) < 3 or "~" not in spec_line:
-                continue
-            lhs = parts[0]
-            rhs_vars = [p for p in parts[1:] if p != "~" and p in df.columns]
-
-            if lhs not in df.columns or not rhs_vars:
-                continue
-
-            df_sub = df[[lhs] + rhs_vars].dropna()
-            if len(df_sub) < 5:
-                continue
-
-            X = sm.add_constant(df_sub[rhs_vars])
-            y = df_sub[lhs]
-            try:
-                model_ols = sm.OLS(y, X).fit()
-                for var in rhs_vars:
-                    path_data.append({
-                        "lhs": lhs, "op": "~", "rhs": var,
-                        "coef": round(model_ols.params.get(var, 0), 6),
-                        "std_err": round(model_ols.bse.get(var, 0), 6),
-                        "z_value": round(model_ols.tvalues.get(var, 0), 4),
-                        "p_value": round(model_ols.pvalues.get(var, 0), 6),
-                        "significant": model_ols.pvalues.get(var, 1) < 0.05,
-                    })
-            except Exception:
-                continue
-
-        if path_data:
-            df_path = pd.DataFrame(path_data)
-            path_csv = os.path.join(stats_dir, "path_analysis_estimates.csv")
-            df_path.to_csv(path_csv, index=False, encoding="utf-8-sig")
-            results["path_analysis_csv"] = path_csv
-            print(f"    Path analysis (OLS fallback) saved: {path_csv}")
-
-            sig = df_path[df_path["significant"]]
-            if len(sig) > 0:
-                print(f"    Significant paths ({len(sig)}/{len(df_path)}):")
-                for _, row in sig.iterrows():
-                    stars = "***" if row["p_value"] < 0.001 else "**" if row["p_value"] < 0.01 else "*"
-                    print(f"      {row['lhs']} ← {row['rhs']}: β = {row['coef']:.4f}, p = {row['p_value']:.4f} {stars}")
+    estimates = fit_path_model(df, model_spec, stats_dir)
+    if estimates is not None:
+        results["path_analysis_csv"] = os.path.join(stats_dir, "path_analysis_estimates.csv")
 
     print(f"  DONE [Step 10, {time.time()-T0:.0f}s]")
     return results
+
+
+def fit_path_model(df, model_spec, stats_dir):
+    """
+    Fit a SEM path model with semopy 2.x and write estimates + fit stats.
+    Handles column names with spaces/parentheses via sanitize_for_sem().
+    """
+    import os
+    import pandas as pd
+    from _utils import sanitize_for_sem, ensure_dir
+
+    # strip comments / blank lines
+    spec_lines = [ln.strip() for ln in model_spec.strip().split("\n")
+                  if ln.strip() and not ln.strip().startswith("#")]
+    raw_spec = "\n".join(spec_lines)
+
+    print(f"    Model specification:")
+    for line in spec_lines:
+        print(f"      {line}")
+
+    df_safe, spec_safe, inverse = sanitize_for_sem(df, raw_spec)
+
+    # collect variables actually present, build the modelling frame
+    model_vars = set()
+    for ln in spec_safe.split("\n"):
+        for tok in ln.replace("~", " ").replace("+", " ").split():
+            if tok in df_safe.columns:
+                model_vars.add(tok)
+    model_df = df_safe[sorted(model_vars)].apply(pd.to_numeric, errors="coerce").dropna()
+    print(f"    N = {len(model_df)} observations; vars = {sorted(model_vars)}")
+
+    if len(model_df) < 5:
+        print("    WARNING: too few observations for SEM. Skipping.")
+        return None
+
+    try:
+        import semopy
+    except ImportError:
+        print("    semopy not installed. Skipping path analysis.")
+        print("    Install with: pip install semopy")
+        return _fallback_ols(df, spec_lines, stats_dir)
+
+    print(f"    semopy version: {semopy.__version__}")
+
+    model = semopy.Model(spec_safe)
+    model.fit(model_df)                      # 2.x API (replaces Optimizer)
+    est = model.inspect()
+
+    # map semopy's column names defensively across 2.x minor versions
+    cmap = {}
+    for c in est.columns:
+        cl = str(c).lower()
+        if cl == "lval":                         cmap[c] = "lhs"
+        elif cl == "op":                         cmap[c] = "op"
+        elif cl == "rval":                       cmap[c] = "rhs"
+        elif cl.startswith("estimate"):          cmap[c] = "coef"
+        elif "std. err" in cl or cl == "std_err":cmap[c] = "std_err"
+        elif "z-value" in cl or "z-score" in cl: cmap[c] = "z_value"
+        elif "p-value" in cl:                    cmap[c] = "p_value"
+    est = est.rename(columns=cmap)
+
+    keep = [c for c in ["lhs", "op", "rhs", "coef", "std_err", "z_value", "p_value"]
+            if c in est.columns]
+    est = est[keep].copy()
+
+    # numeric coercion ('-' for fixed params becomes NaN)
+    for c in ["coef", "std_err", "z_value", "p_value"]:
+        if c in est.columns:
+            est[c] = pd.to_numeric(est[c], errors="coerce")
+    if "p_value" in est.columns:
+        est["significant"] = est["p_value"] < 0.05
+
+    # map safe names back to original readable names
+    if "lhs" in est.columns:
+        est["lhs"] = est["lhs"].map(lambda x: inverse.get(x, x))
+    if "rhs" in est.columns:
+        est["rhs"] = est["rhs"].map(lambda x: inverse.get(x, x))
+
+    ensure_dir(stats_dir)
+    path_csv = os.path.join(stats_dir, "path_analysis_estimates.csv")
+    est.to_csv(path_csv, index=False, encoding="utf-8-sig")
+    print(f"    Path estimates saved: {path_csv}")
+
+    # Print significant paths
+    sig = est[est["significant"] == True]
+    if len(sig) > 0:
+        print(f"    Significant paths ({len(sig)}/{len(est)}):")
+        for _, row in sig.iterrows():
+            pv = row.get("p_value", 1)
+            stars = "***" if pv < 0.001 else "**" if pv < 0.01 else "*"
+            print(f"      {row['lhs']} <- {row['rhs']}: B = {row['coef']:.4f}, p = {pv:.4f} {stars}")
+
+    # fit statistics (calc_stats still exists in 2.x; shape varies)
+    try:
+        stats = semopy.calc_stats(model)
+        srow = stats.iloc[0].to_dict()
+        def pick(*keys):
+            for k in srow:
+                kl = str(k).lower()
+                if any(t in kl for t in keys):
+                    return srow[k]
+            return None
+        fit = {
+            "chi2":   pick("chi2") if "p-value" not in str(pick("chi2")) else None,
+            "dof":    pick("dof"),
+            "cfi":    pick("cfi"),
+            "tli":    pick("tli"),
+            "rmsea":  pick("rmsea"),
+            "aic":    pick("aic"),
+            "bic":    pick("bic"),
+        }
+        fit_csv = os.path.join(stats_dir, "path_analysis_fit.csv")
+        pd.DataFrame([fit]).to_csv(fit_csv, index=False, encoding="utf-8-sig")
+        print(f"    Fit stats saved: {fit_csv}  (N={len(model_df)}, interpret cautiously)")
+    except Exception as e:
+        print(f"    Fit stats unavailable: {e}")
+
+    return est
+
+
+def _fallback_ols(df, spec_lines, stats_dir):
+    """OLS fallback when semopy is unavailable."""
+    import statsmodels.api as sm
+    path_data = []
+
+    for spec_line in spec_lines:
+        parts = spec_line.replace("~", " ").strip().split()
+        if len(parts) < 3 or "~" not in spec_line:
+            continue
+        lhs = parts[0]
+        rhs_vars = [p for p in parts[1:] if p != "~" and p in df.columns]
+
+        if lhs not in df.columns or not rhs_vars:
+            continue
+
+        df_sub = df[[lhs] + rhs_vars].dropna()
+        if len(df_sub) < 5:
+            continue
+
+        X = sm.add_constant(df_sub[rhs_vars])
+        y = df_sub[lhs]
+        try:
+            model_ols = sm.OLS(y, X).fit()
+            for var in rhs_vars:
+                path_data.append({
+                    "lhs": lhs, "op": "~", "rhs": var,
+                    "coef": round(model_ols.params.get(var, 0), 6),
+                    "std_err": round(model_ols.bse.get(var, 0), 6),
+                    "z_value": round(model_ols.tvalues.get(var, 0), 4),
+                    "p_value": round(model_ols.pvalues.get(var, 0), 6),
+                    "significant": model_ols.pvalues.get(var, 1) < 0.05,
+                })
+        except Exception:
+            continue
+
+    if path_data:
+        df_path = pd.DataFrame(path_data)
+        path_csv = os.path.join(stats_dir, "path_analysis_estimates.csv")
+        df_path.to_csv(path_csv, index=False, encoding="utf-8-sig")
+        print(f"    Path analysis (OLS fallback) saved: {path_csv}")
+        sig = df_path[df_path["significant"]]
+        if len(sig) > 0:
+            print(f"    Significant paths ({len(sig)}/{len(df_path)}):")
+            for _, row in sig.iterrows():
+                stars = "***" if row["p_value"] < 0.001 else "**" if row["p_value"] < 0.01 else "*"
+                print(f"      {row['lhs']} <- {row['rhs']}: B = {row['coef']:.4f}, p = {row['p_value']:.4f} {stars}")
+        return df_path
+    return None
 
 
 if __name__ == "__main__":

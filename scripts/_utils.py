@@ -5,6 +5,7 @@ Follows Nanling analysis conventions for severity/intensity classification
 and raster handling.
 """
 import os
+import re
 import numpy as np
 
 
@@ -221,3 +222,99 @@ def classify_severity(magnitude, bins=None):
     for i, (label, lo, hi, color) in enumerate(bins):
         result[(magnitude >= lo) & (magnitude < hi)] = i + 1
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Raster helper functions (used by step2/step3)
+# ═══════════════════════════════════════════════════════════════════
+
+def rasterize_boundary(boundary_gdf, out_shape, transform, all_touched=False):
+    """
+    Burn a (already-reprojected) boundary GeoDataFrame onto a raster grid.
+
+    Parameters
+    ----------
+    boundary_gdf : GeoDataFrame  Boundary already in the target raster CRS.
+    out_shape    : tuple         (rows, cols) of the target raster.
+    transform    : Affine        Target raster transform.
+    all_touched  : bool          True = include edge pixels touched by polygon;
+                                  False (default) = pixel-center-in-polygon.
+
+    Returns
+    -------
+    np.ndarray (bool)  True inside the boundary, False outside. Shape == out_shape.
+    """
+    from rasterio.features import rasterize as _rio_rasterize
+
+    geoms = [(geom, 1) for geom in boundary_gdf.geometry if geom is not None]
+    if not geoms:
+        raise ValueError("rasterize_boundary: boundary has no valid geometries.")
+
+    mask = _rio_rasterize(
+        geoms,
+        out_shape=out_shape,
+        transform=transform,
+        fill=0,
+        all_touched=all_touched,
+        dtype="uint8",
+    )
+    return mask.astype(bool)
+
+
+def clip_raster_to_boundary(raster_path, boundary_gdf, band=1, nodata=0):
+    """
+    Clip a single-band raster to a boundary, reprojecting the boundary to the
+    raster's native CRS automatically (matches the Nanling convention).
+
+    Returns
+    -------
+    tuple  (array_2d, transform, meta_dict)
+    """
+    import rasterio
+    from rasterio.mask import mask as _rio_mask
+    from shapely.geometry import mapping
+
+    with rasterio.open(str(raster_path)) as src:
+        proj = boundary_gdf.to_crs(src.crs)               # always reproject boundary
+        shapes = [mapping(g) for g in proj.geometry if g is not None]
+        out_img, out_tf = _rio_mask(src, shapes, crop=True, nodata=nodata, filled=True)
+        meta = src.meta.copy()
+        meta.update(height=out_img.shape[1], width=out_img.shape[2], transform=out_tf)
+
+    return out_img[band - 1], out_tf, meta
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Column name sanitization for SEM / formula-based tools
+# ═══════════════════════════════════════════════════════════════════
+
+def safe_ident(name):
+    """Turn an arbitrary column name into a valid SEM/formula identifier."""
+    s = re.sub(r"[^0-9a-zA-Z]+", "_", str(name)).strip("_").lower()
+    if not s:
+        s = "var"
+    if s[0].isdigit():
+        s = "v_" + s
+    return s
+
+
+def sanitize_for_sem(df, spec):
+    """
+    Rename df columns to safe identifiers and rewrite the model spec to match.
+
+    Returns
+    -------
+    df_safe   : DataFrame with renamed columns
+    spec_safe : str, model spec with names replaced
+    inverse   : dict {safe_name: original_name} for mapping results back
+    """
+    name_map = {c: safe_ident(c) for c in df.columns}
+    df_safe = df.rename(columns=name_map)
+
+    spec_safe = spec
+    for orig in sorted(name_map, key=len, reverse=True):   # longest first
+        if orig in spec_safe:
+            spec_safe = spec_safe.replace(orig, name_map[orig])
+
+    inverse = {v: k for k, v in name_map.items()}
+    return df_safe, spec_safe, inverse
