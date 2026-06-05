@@ -43,7 +43,7 @@ All upstream remote-sensing computation runs on **Google Earth Engine (GEE)**, *
 
 This Python pipeline is strictly **downstream**: it ingests those GEE-exported rasters and runs the analysis chain: disturbance statistics, LULC area/transition trends, landscape metrics, ecosystem-service estimation, and statistical coupling. It does **not** fit LandTrendr, train classifiers, or classify imagery itself.
 
-> **Coming later:** the GEE-side scripts (LandTrendr export + LULC classification/training) are maintained separately for now and will be added to this repo in a future update. Until then, bring your own GEE exports as described in [Data Inputs](#data-inputs).
+> **LULC classification source**: The GEE-side SVM classification workflow (training-sample ingestion, Landsat/Sentinel-2 compositing, spectral-index and GLCM-texture feature engineering, class-balanced 70/30 split, per-year accuracy gating) is maintained in the sibling repository **[`GEE_LULC_SVM`](https://github.com/skyscanding/GEE_LULC_SVM)**. It provides both interactive GEE Code Editor scripts (JavaScript) and repeatable local Python CLI drivers that export annual 5-class GeoTIFFs (EPSG:32649, 30 m) ready for ingestion by this pipeline. Local path: `../Test2/GEE_LULC_SVM/GEE_LULC_SVM`.
 
 ### InVEST dependency
 
