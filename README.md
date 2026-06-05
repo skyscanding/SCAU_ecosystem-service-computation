@@ -8,7 +8,7 @@ No GUI. Entirely command-line driven. Point it at your GEE LandTrendr exports an
 
 ## Table of Contents
 
-- [Scope: GEE upstream vs. this pipeline](#scope-gee-upstream-vs-this-pipeline)
+- [Scope: Upstream dependencies vs. this pipeline](#scope-upstream-dependencies-vs-this-pipeline)
 - [Core Methodology](#core-methodology)
 - [Case Study: Dabaoshan Mine Area](#case-study-dabaoshan-mine-area)
 - [10-Step Pipeline Overview](#10-step-pipeline-overview)
@@ -31,7 +31,9 @@ No GUI. Entirely command-line driven. Point it at your GEE LandTrendr exports an
 
 ---
 
-## Scope: GEE upstream vs. this pipeline
+## Scope: Upstream dependencies vs. this pipeline
+
+### GEE upstream
 
 All upstream remote-sensing computation runs on **Google Earth Engine (GEE)**, *not* in this repository:
 
@@ -42,6 +44,22 @@ All upstream remote-sensing computation runs on **Google Earth Engine (GEE)**, *
 This Python pipeline is strictly **downstream**: it ingests those GEE-exported rasters and runs the analysis chain: disturbance statistics, LULC area/transition trends, landscape metrics, ecosystem-service estimation, and statistical coupling. It does **not** fit LandTrendr, train classifiers, or classify imagery itself.
 
 > **Coming later:** the GEE-side scripts (LandTrendr export + LULC classification/training) are maintained separately for now and will be added to this repo in a future update. Until then, bring your own GEE exports as described in [Data Inputs](#data-inputs).
+
+### InVEST dependency
+
+The original Dabaoshan Jupyter notebook (`Dabaoshan_LULC_analysis_CN.ipynb`) called the **real InVEST Python API** (`natcap.invest` 3.19) to run Carbon, Habitat Quality, and SDR models. That required a dedicated conda environment with `natcap.invest` installed and the kernel selected in VSCode (`conda activate invest_env` followed by selecting `invest_env` as the Jupyter kernel).
+
+This pipeline **replaces** those real InVEST calls with **simplified area × coefficient lookup models** (steps 4-6). These produce comparable summary-level estimates without any `natcap.invest` or conda dependency. The trade-off is spatial precision: the simplified models compute study-area totals from LULC area proportions, whereas the real InVEST API produces per-pixel rasters.
+
+If you need the original per-pixel InVEST outputs, run the original notebook with a conda environment containing `natcap.invest`:
+
+```bash
+conda create -n invest_env python=3.10 -y
+conda activate invest_env
+pip install natcap.invest
+```
+
+Then select `invest_env` as the kernel in VSCode before running the notebook.
 
 ## Core Methodology
 
