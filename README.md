@@ -43,7 +43,7 @@ All upstream remote-sensing computation runs on **Google Earth Engine (GEE)**, *
 
 This Python pipeline is strictly **downstream**: it ingests those GEE-exported rasters and runs the analysis chain: disturbance statistics, LULC area/transition trends, landscape metrics, ecosystem-service estimation, and statistical coupling. It does **not** fit LandTrendr, train classifiers, or classify imagery itself.
 
-> **LULC classification source**: The GEE-side SVM classification workflow (training-sample ingestion, Landsat/Sentinel-2 compositing, spectral-index and GLCM-texture feature engineering, class-balanced 70/30 split, per-year accuracy gating) is maintained in the sibling repository **[`SCAU_Landtrendr-LULC-computation`](https://github.com/skyscanding/SCAU_Landtrendr-LULC-computation)**. It provides both interactive GEE Code Editor scripts (JavaScript) and repeatable local Python CLI drivers. All parameters — CRS, pixel resolution, training-sample class distribution, feature selection, SVM hyperparameters, and accuracy thresholds — are tuned to the Dabaoshan study area and must be re-calibrated for other regions.
+> **LULC classification source**: The GEE-side SVM classification workflow (training-sample ingestion, Landsat/Sentinel-2 compositing, spectral-index and GLCM-texture feature engineering, class-balanced 70/30 split, per-year accuracy gating) is maintained in the sibling repository **[`SCAU_Landtrendr-LULC-computation`](https://github.com/skyscanding/SCAU_Landtrendr-LULC-computation)**. It provides both interactive GEE Code Editor scripts (JavaScript) and repeatable local Python CLI drivers. All parameters: CRS, pixel resolution, training-sample class distribution, feature selection, SVM hyperparameters, and accuracy thresholds: are tuned to the Dabaoshan study area and must be re-calibrated for other regions.
 
 ### InVEST dependency
 
@@ -990,4 +990,24 @@ Landtrendr_analysis/
 
 ## License
 
-Proprietary — All Rights Reserved. See the [LICENSE](LICENSE) file.
+Proprietary: All Rights Reserved. See the [LICENSE](LICENSE) file.
+
+---
+
+## 中文说明 (Chinese Summary)
+
+> 以下中文说明由 AI 翻译生成，内容以英文原文为准。
+
+本工具是一个基于配置文件的命令行管道，将原始遥感栅格数据自动转换为可发表的耦合统计结果。它把原本需要在 Jupyter Notebook 中手动运行的分析流程，转变为可通过单一配置文件批量复现的工作流。
+
+**核心流程**：
+
+1. **LandTrendr 扰动分析**（Nanling 规范）: 加载 GEE 导出的 YOD/MAG/DUR/MPY 栅格，裁剪至研究区边界，按年统计扰动面积与强度，输出 4 级强度分类和 3 级严重度分类，生成 16 张诊断图表。
+2. **LULC 面积趋势**: 从多年分类栅格计算各地类面积时间序列与转移矩阵。
+3. **景观格局指数** (PyLandStats): 逐年计算 8 个景观水平和 8 个类型水平指标。
+4. **生态系统服务估算**: 基于面积×系数的简化查找表模型估算碳储量、生境质量和水土流失（非 InVEST 软件本身）。
+5. **统计耦合分析**: Pearson/Spearman 相关（FDR 校正）、偏相关、OLS 回归、SEM 路径分析 (semopy)、Kruskal-Wallis 阶段比较。
+
+**环境要求**: 纯 Python 依赖，无需 conda 环境或 natcap.invest。原始 Dabaoshan 案例的 InVEST 完整计算使用了 natcap.invest + conda 环境，本管道以简化查找表替代，实现了同等汇总级估算。
+
+本工具已在大宝山矿区生态修复案例（广东省，15.10 km²）上完成验证。
