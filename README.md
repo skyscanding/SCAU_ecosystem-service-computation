@@ -1,5 +1,14 @@
 # LandTrendr Disturbance + Ecosystem Services Coupling Analysis
 
+
+Downstream Python pipeline that ingests GEE-exported LandTrendr disturbance rasters and annual LULC maps, then runs the full analysis chain: disturbance statistics, LULC trends, landscape metrics, InVEST-style ecosystem services, and statistical coupling. Validated on the Dabaoshan Mine Area ecological restoration case study.
+
+> **Sibling repository**: This repo is one of two that together form the full Dabaoshan analysis pipeline:
+>
+> - **[`SCAU_Landtrendr-LULC-computation`](https://github.com/skyscanding/SCAU_Landtrendr-LULC-computation)** : GEE-side LandTrendr disturbance detection and SVM LULC classification, producing annual disturbance rasters (YOD/MAG/DUR/MPY) and classified LULC maps.
+> - **This repo (`SCAU_ecosystem-service-computation`)** : Downstream Python pipeline that ingests those GeoTIFFs and runs LULC trends, landscape metrics, InVEST-style ecosystem services, and statistical coupling.
+
+
 A config-driven, command-line pipeline that automates the full chain from raw remote-sensing rasters to publishable coupling statistics. It turns an analysis that was previously run by hand in Jupyter notebooks into a reproducible workflow that can be **run in batch** across study areas and across years from a single config file.
 
 It integrates **GEE-exported LandTrendr disturbance products** (YOD / MAG / DUR / MPY) with **pre-classified annual LULC maps**, then computes LULC area & transition trends, **landscape metrics** (PyLandStats), **InVEST-style ecosystem-service estimation** (Carbon, Habitat Quality, SDR; simplified area × coefficient lookup models, *not* the InVEST software), and **statistical coupling analysis** (correlation, regression, SEM path analysis, Kruskal-Wallis phase comparison).
