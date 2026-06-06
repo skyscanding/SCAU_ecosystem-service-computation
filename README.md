@@ -998,16 +998,22 @@ Proprietary: All Rights Reserved. See the [LICENSE](LICENSE) file.
 
 > 以下中文说明由 AI 翻译生成，内容以英文原文为准。
 
-本工具是一个基于配置文件的命令行管道，将原始遥感栅格数据自动转换为可发表的耦合统计结果。它把原本需要在 Jupyter Notebook 中手动运行的分析流程，转变为可通过单一配置文件批量复现的工作流。
+本工具是一个基于配置文件的命令行管道，将原始遥感栅格数据自动转换为可发表的耦合统计结果。它将原本需要在 Jupyter Notebook 中手动运行的分析流程，转变为可通过单一 JSON 配置文件批量复现的工作流。每个步骤均可独立运行（命令行参数）或作为可导入函数由主编排器统一调度。
+
+**案例背景**：本工具基于大宝山矿区（广东省韶关市，15.10 km²，EPSG:32649）生态修复研究开发并验证。研究区包含五类 LULC（水体、建设用地、未恢复地、恢复中、稳定植被），时间跨度为 2000-2025 年（23 幅 Landsat SVM 分类图），LandTrendr 扰动检测窗口为 2013-2024 年。
 
 **核心流程**：
 
-1. **LandTrendr 扰动分析**（Nanling 规范）: 加载 GEE 导出的 YOD/MAG/DUR/MPY 栅格，裁剪至研究区边界，按年统计扰动面积与强度，输出 4 级强度分类和 3 级严重度分类，生成 16 张诊断图表。
-2. **LULC 面积趋势**: 从多年分类栅格计算各地类面积时间序列与转移矩阵。
-3. **景观格局指数** (PyLandStats): 逐年计算 8 个景观水平和 8 个类型水平指标。
-4. **生态系统服务估算**: 基于面积×系数的简化查找表模型估算碳储量、生境质量和水土流失（非 InVEST 软件本身）。
-5. **统计耦合分析**: Pearson/Spearman 相关（FDR 校正）、偏相关、OLS 回归、SEM 路径分析 (semopy)、Kruskal-Wallis 阶段比较。
+1. **LandTrendr 扰动分析**：加载 GEE 导出的 YOD（扰动年份）、MAG（NBR 变化幅度）、DUR（持续年数）、MPY（年均幅度）四幅栅格，以 YOD 栅格的 CRS 为参考网格，对其余栅格进行逐栅格 CRS 裁剪与重投影对齐。按年统计扰动像元数、面积（ha/km²）、平均/中位数/标准差幅度、年均变化速率，按 4 级强度（Low/Moderate/High/Very High）和 3 级严重度（Low/Moderate/High）分类。输出包含 16 张符合 Nanling 规范的诊断图表和一份 `summary_statistics.csv`。大宝山案例共检出 1,008 个扰动像元（90.7 ha，占研究区 6.01%）。
 
-**环境要求**: 纯 Python 依赖，无需 conda 环境或 natcap.invest。原始 Dabaoshan 案例的 InVEST 完整计算使用了 natcap.invest + conda 环境，本管道以简化查找表替代，实现了同等汇总级估算。
+2. **LULC 面积趋势与转移矩阵**：从多年分类栅格（2000-2025）计算各地类逐年面积及占比，生成首末年的转移矩阵（公顷）和转移概率矩阵。
 
-本工具已在大宝山矿区生态修复案例（广东省，15.10 km²）上完成验证。
+3. **景观格局指数**：通过 PyLandStats（Python 版 FRAGSTATS）逐年计算 8 个景观水平指标（NP、PD、LPI、ED、LSI、SHDI、CONTAG、MESH）和 8 个类型水平指标。
+
+4. **生态系统服务估算**：采用面积×系数的简化查找表模型替代完整的 InVEST 软件: : 碳储量以四库密度（地上/地下/土壤/枯死）乘以各地类面积求和；生境质量以生境适宜度加权、扣除人为威胁退化因子后取面积加权平均；水土流失基于 USLE 方程（逐年 R 因子 × K × LS × C × P），乘以固定的泥沙输移比。这些简化模型无需 natcap.invest 或 conda 环境，但产生的是研究区汇总估算值，而非像元级栅格。
+
+5. **统计耦合分析**：Pearson 和 Spearman 相关矩阵（含 FDR Benjamini-Hochberg 多重比较校正）、偏相关分析（控制 LULC 面积与景观格局协变量）、三组 OLS 多元回归模型（碳储量 ~ 扰动幅度 + 景观优势度 + 多样性等）、基于 semopy 的 SEM 路径分析（检验"扰动 → 景观格局 → 生态系统服务"因果链假设）、三阶段（退化期 2013-2016、转型期 2017-2020、巩固期 2021-2025）Kruskal-Wallis 非参数比较。
+
+**关键发现**：碳储量从 2013 年的 2.19M Mg 下降至 2023 年的 1.61M Mg，OLS 回归模型 Adj R² = 0.778（F = 13.82, p = 0.002），SEM 路径分析确认 SHDI → 碳储量（β = -0.487, p < 0.001）和 MESH → 碳储量（β = 0.332, p = 0.005）两条显著路径。
+
+**环境要求**：纯 Python 依赖（numpy、scipy、pandas、matplotlib、rasterio、geopandas、shapely、pylandstats、pingouin、statsmodels、semopy），无需 conda 环境或 natcap.invest。原始 Dabaoshan 案例的 InVEST 完整计算使用了 natcap.invest 3.19 + conda 环境，本管道以简化查找表替代，实现了同等汇总级估算。如需运行原始的逐像元 InVEST 计算，请参考 Scope 章节中的 conda 环境配置说明。
